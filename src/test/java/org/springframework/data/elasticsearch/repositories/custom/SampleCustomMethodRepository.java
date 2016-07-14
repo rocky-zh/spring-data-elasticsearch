@@ -16,6 +16,7 @@
 package org.springframework.data.elasticsearch.repositories.custom;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -71,6 +72,10 @@ public interface SampleCustomMethodRepository extends ElasticsearchRepository<Sa
 
 	Page<SampleEntity> findByMessageOrderByTypeAsc(String message, Pageable pageable);
 
+	Page<SampleEntity> findByLocation(GeoPoint point, Pageable pageable);
+
+	Page<SampleEntity> findByLocationAndMessage(GeoPoint point, String msg, Pageable pageable);
+
 	Page<SampleEntity> findByLocationWithin(GeoPoint point, String distance, Pageable pageable);
 
 	Page<SampleEntity> findByLocationWithin(Point point, Distance distance, Pageable pageable);
@@ -82,6 +87,8 @@ public interface SampleCustomMethodRepository extends ElasticsearchRepository<Sa
 	Page<SampleEntity> findByLocationNear(Point point, Distance distance, Pageable pageable);
 
 	Page<SampleEntity> findByLocationNear(GeoPoint point, String distance, Pageable pageable);
+
+	Stream<SampleEntity> findByType(String type);
 
 	long countByType(String type);
 
@@ -122,5 +129,4 @@ public interface SampleCustomMethodRepository extends ElasticsearchRepository<Sa
 	long countByLocationNear(Point point, Distance distance);
 
 	long countByLocationNear(GeoPoint point, String distance);
-
 }

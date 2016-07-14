@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2013-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,20 @@
  */
 package org.springframework.data.elasticsearch;
 
-import static org.apache.commons.lang.RandomStringUtils.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.apache.commons.lang.RandomStringUtils.randomNumeric;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -35,7 +42,13 @@ import org.springframework.data.elasticsearch.core.query.GetQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQuery;
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.data.elasticsearch.core.query.SearchQuery;
-import org.springframework.data.elasticsearch.entities.*;
+import org.springframework.data.elasticsearch.entities.Author;
+import org.springframework.data.elasticsearch.entities.Book;
+import org.springframework.data.elasticsearch.entities.Car;
+import org.springframework.data.elasticsearch.entities.GirlFriend;
+import org.springframework.data.elasticsearch.entities.Person;
+import org.springframework.data.elasticsearch.entities.PersonMultipleLevelNested;
+import org.springframework.data.geo.Point;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -57,31 +70,31 @@ public class NestedObjectTests {
 		elasticsearchTemplate.deleteIndex(Book.class);
 		elasticsearchTemplate.createIndex(Book.class);
 		elasticsearchTemplate.putMapping(Book.class);
-		elasticsearchTemplate.refresh(Book.class, true);
+		elasticsearchTemplate.refresh(Book.class);
 		elasticsearchTemplate.deleteIndex(Person.class);
 		elasticsearchTemplate.createIndex(Person.class);
 		elasticsearchTemplate.putMapping(Person.class);
-		elasticsearchTemplate.refresh(Person.class, true);
+		elasticsearchTemplate.refresh(Person.class);
 		elasticsearchTemplate.deleteIndex(PersonMultipleLevelNested.class);
 		elasticsearchTemplate.createIndex(PersonMultipleLevelNested.class);
 		elasticsearchTemplate.putMapping(PersonMultipleLevelNested.class);
-		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class, true);
+		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class);
 	}
 
 	@Test
 	public void shouldIndexInitialLevelNestedObject() {
 
-		List<Car> cars = new ArrayList<Car>();
+		final List<Car> cars = new ArrayList<Car>();
 
-		Car saturn = new Car();
+		final Car saturn = new Car();
 		saturn.setName("Saturn");
 		saturn.setModel("SL");
 
-		Car subaru = new Car();
+		final Car subaru = new Car();
 		subaru.setName("Subaru");
 		subaru.setModel("Imprezza");
 
-		Car ford = new Car();
+		final Car ford = new Car();
 		ford.setName("Ford");
 		ford.setModel("Focus");
 
@@ -89,26 +102,26 @@ public class NestedObjectTests {
 		cars.add(subaru);
 		cars.add(ford);
 
-		Person foo = new Person();
+		final Person foo = new Person();
 		foo.setName("Foo");
 		foo.setId("1");
 		foo.setCar(cars);
 
-		Car car = new Car();
+		final Car car = new Car();
 		car.setName("Saturn");
 		car.setModel("Imprezza");
 
-		Person bar = new Person();
+		final Person bar = new Person();
 		bar.setId("2");
 		bar.setName("Bar");
 		bar.setCar(Arrays.asList(car));
 
-		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
-		IndexQuery indexQuery1 = new IndexQuery();
+		final List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
+		final IndexQuery indexQuery1 = new IndexQuery();
 		indexQuery1.setId(foo.getId());
 		indexQuery1.setObject(foo);
 
-		IndexQuery indexQuery2 = new IndexQuery();
+		final IndexQuery indexQuery2 = new IndexQuery();
 		indexQuery2.setId(bar.getId());
 		indexQuery2.setObject(bar);
 
@@ -117,12 +130,12 @@ public class NestedObjectTests {
 
 		elasticsearchTemplate.putMapping(Person.class);
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(Person.class, true);
+		elasticsearchTemplate.refresh(Person.class);
 
-		QueryBuilder builder = nestedQuery("car", boolQuery().must(termQuery("car.name", "saturn")).must(termQuery("car.model", "imprezza")));
+		final QueryBuilder builder = nestedQuery("car", boolQuery().must(termQuery("car.name", "saturn")).must(termQuery("car.model", "imprezza")));
 
-		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(builder).build();
-		List<Person> persons = elasticsearchTemplate.queryForList(searchQuery, Person.class);
+		final SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(builder).build();
+		final List<Person> persons = elasticsearchTemplate.queryForList(searchQuery, Person.class);
 
 		assertThat(persons.size(), is(1));
 	}
@@ -130,40 +143,60 @@ public class NestedObjectTests {
 	@Test
 	public void shouldIndexMultipleLevelNestedObject() {
 		//given
-		List<IndexQuery> indexQueries = createPerson();
+		final List<IndexQuery> indexQueries = createPerson();
 
 		//when
 		elasticsearchTemplate.putMapping(PersonMultipleLevelNested.class);
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class, true);
+		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class);
 
 		//then
-		GetQuery getQuery = new GetQuery();
+		final GetQuery getQuery = new GetQuery();
 		getQuery.setId("1");
-		PersonMultipleLevelNested personIndexed = elasticsearchTemplate.queryForObject(getQuery, PersonMultipleLevelNested.class);
+		final PersonMultipleLevelNested personIndexed = elasticsearchTemplate.queryForObject(getQuery, PersonMultipleLevelNested.class);
 		assertThat(personIndexed, is(notNullValue()));
 	}
 
 	@Test
-	public void shouldSearchUsingNestedQueryOnMultipleLevelNestedObject() {
+	public void shouldIndexMultipleLevelNestedObjectWithIncludeInParent() {
 		//given
-		List<IndexQuery> indexQueries = createPerson();
+		final List<IndexQuery> indexQueries = createPerson();
 
 		//when
 		elasticsearchTemplate.putMapping(PersonMultipleLevelNested.class);
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class, true);
+		// then 
+
+		final Map mapping = elasticsearchTemplate.getMapping(PersonMultipleLevelNested.class);
+
+		assertThat(mapping, is(notNullValue()));
+		final Map propertyMap = (Map) mapping.get("properties");
+		assertThat(propertyMap, is(notNullValue()));
+		final Map bestCarsAttributes = (Map) propertyMap.get("bestCars");
+		assertThat(bestCarsAttributes.get("include_in_parent"), is(notNullValue()));
+	}
+
+
+	@Test
+	public void shouldSearchUsingNestedQueryOnMultipleLevelNestedObject() {
+		//given
+		final List<IndexQuery> indexQueries = createPerson();
+
+		//when
+		elasticsearchTemplate.putMapping(PersonMultipleLevelNested.class);
+		elasticsearchTemplate.bulkIndex(indexQueries);
+		elasticsearchTemplate.refresh(PersonMultipleLevelNested.class);
 
 		//then
-		BoolQueryBuilder builder = boolQuery();
+		final BoolQueryBuilder builder = boolQuery();
 		builder.must(nestedQuery("girlFriends", termQuery("girlFriends.type", "temp")))
 				.must(nestedQuery("girlFriends.cars", termQuery("girlFriends.cars.name", "Ford".toLowerCase())));
 
-		SearchQuery searchQuery = new NativeSearchQueryBuilder()
+		final SearchQuery searchQuery = new NativeSearchQueryBuilder()
 				.withQuery(builder)
 				.build();
 
-		Page<PersonMultipleLevelNested> personIndexed = elasticsearchTemplate.queryForPage(searchQuery, PersonMultipleLevelNested.class);
+		final Page<PersonMultipleLevelNested> personIndexed = elasticsearchTemplate.queryForPage(searchQuery, PersonMultipleLevelNested.class);
 		assertThat(personIndexed, is(notNullValue()));
 		assertThat(personIndexed.getTotalElements(), is(1L));
 		assertThat(personIndexed.getContent().get(0).getId(), is("1"));
@@ -172,55 +205,55 @@ public class NestedObjectTests {
 
 	private List<IndexQuery> createPerson() {
 
-		PersonMultipleLevelNested person1 = new PersonMultipleLevelNested();
+		final PersonMultipleLevelNested person1 = new PersonMultipleLevelNested();
 
 		person1.setId("1");
 		person1.setName("name");
 
-		Car saturn = new Car();
+		final Car saturn = new Car();
 		saturn.setName("Saturn");
 		saturn.setModel("SL");
 
-		Car subaru = new Car();
+		final Car subaru = new Car();
 		subaru.setName("Subaru");
 		subaru.setModel("Imprezza");
 
-		Car car = new Car();
+		final Car car = new Car();
 		car.setName("Saturn");
 		car.setModel("Imprezza");
 
-		Car ford = new Car();
+		final Car ford = new Car();
 		ford.setName("Ford");
 		ford.setModel("Focus");
 
-		GirlFriend permanent = new GirlFriend();
+		final GirlFriend permanent = new GirlFriend();
 		permanent.setName("permanent");
 		permanent.setType("permanent");
 		permanent.setCars(Arrays.asList(saturn, subaru));
 
-		GirlFriend temp = new GirlFriend();
+		final GirlFriend temp = new GirlFriend();
 		temp.setName("temp");
 		temp.setType("temp");
 		temp.setCars(Arrays.asList(car, ford));
 
 		person1.setGirlFriends(Arrays.asList(permanent, temp));
 
-		IndexQuery indexQuery1 = new IndexQuery();
+		final IndexQuery indexQuery1 = new IndexQuery();
 		indexQuery1.setId(person1.getId());
 		indexQuery1.setObject(person1);
 
-		PersonMultipleLevelNested person2 = new PersonMultipleLevelNested();
+		final PersonMultipleLevelNested person2 = new PersonMultipleLevelNested();
 
 		person2.setId("2");
 		person2.setName("name");
 
 		person2.setGirlFriends(Arrays.asList(permanent));
 
-		IndexQuery indexQuery2 = new IndexQuery();
+		final IndexQuery indexQuery2 = new IndexQuery();
 		indexQuery2.setId(person2.getId());
 		indexQuery2.setObject(person2);
 
-		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
+		final List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
 		indexQueries.add(indexQuery1);
 		indexQueries.add(indexQuery2);
 
@@ -230,17 +263,17 @@ public class NestedObjectTests {
 	@Test
 	public void shouldSearchBooksForPersonInitialLevelNestedType() {
 
-		List<Car> cars = new ArrayList<Car>();
+		final List<Car> cars = new ArrayList<Car>();
 
-		Car saturn = new Car();
+		final Car saturn = new Car();
 		saturn.setName("Saturn");
 		saturn.setModel("SL");
 
-		Car subaru = new Car();
+		final Car subaru = new Car();
 		subaru.setName("Subaru");
 		subaru.setModel("Imprezza");
 
-		Car ford = new Car();
+		final Car ford = new Car();
 		ford.setName("Ford");
 		ford.setModel("Focus");
 
@@ -248,43 +281,43 @@ public class NestedObjectTests {
 		cars.add(subaru);
 		cars.add(ford);
 
-		Book java = new Book();
+		final Book java = new Book();
 		java.setId("1");
 		java.setName("java");
-		Author javaAuthor = new Author();
+		final Author javaAuthor = new Author();
 		javaAuthor.setId("1");
 		javaAuthor.setName("javaAuthor");
 		java.setAuthor(javaAuthor);
 
-		Book spring = new Book();
+		final Book spring = new Book();
 		spring.setId("2");
 		spring.setName("spring");
-		Author springAuthor = new Author();
+		final Author springAuthor = new Author();
 		springAuthor.setId("2");
 		springAuthor.setName("springAuthor");
 		spring.setAuthor(springAuthor);
 
-		Person foo = new Person();
+		final Person foo = new Person();
 		foo.setName("Foo");
 		foo.setId("1");
 		foo.setCar(cars);
 		foo.setBooks(Arrays.asList(java, spring));
 
-		Car car = new Car();
+		final Car car = new Car();
 		car.setName("Saturn");
 		car.setModel("Imprezza");
 
-		Person bar = new Person();
+		final Person bar = new Person();
 		bar.setId("2");
 		bar.setName("Bar");
 		bar.setCar(Arrays.asList(car));
 
-		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
-		IndexQuery indexQuery1 = new IndexQuery();
+		final List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
+		final IndexQuery indexQuery1 = new IndexQuery();
 		indexQuery1.setId(foo.getId());
 		indexQuery1.setObject(foo);
 
-		IndexQuery indexQuery2 = new IndexQuery();
+		final IndexQuery indexQuery2 = new IndexQuery();
 		indexQuery2.setId(bar.getId());
 		indexQuery2.setObject(bar);
 
@@ -293,24 +326,24 @@ public class NestedObjectTests {
 
 		elasticsearchTemplate.putMapping(Person.class);
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(Person.class, true);
+		elasticsearchTemplate.refresh(Person.class);
 
-		QueryBuilder builder = nestedQuery("books", boolQuery().must(termQuery("books.name", "java")));
+		final QueryBuilder builder = nestedQuery("books", boolQuery().must(termQuery("books.name", "java")));
 
-		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(builder).build();
-		List<Person> persons = elasticsearchTemplate.queryForList(searchQuery, Person.class);
+		final SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(builder).build();
+		final List<Person> persons = elasticsearchTemplate.queryForList(searchQuery, Person.class);
 
 		assertThat(persons.size(), is(1));
 	}
 
 	/*
 	DATAES-73
-	*/
+	 */
 	@Test
 	public void shouldIndexAndSearchMapAsNestedType() {
 		//given
-		Book book1 = new Book();
-		Book book2 = new Book();
+		final Book book1 = new Book();
+		final Book book2 = new Book();
 
 		book1.setId(randomNumeric(5));
 		book1.setName("testBook1");
@@ -318,21 +351,21 @@ public class NestedObjectTests {
 		book2.setId(randomNumeric(5));
 		book2.setName("testBook2");
 
-		Map<Integer, Collection<String>> map1 = new HashMap<Integer, Collection<String>>();
+		final Map<Integer, Collection<String>> map1 = new HashMap<Integer, Collection<String>>();
 		map1.put(1, Arrays.asList("test1", "test2"));
 
-		Map<Integer, Collection<String>> map2 = new HashMap<Integer, Collection<String>>();
+		final Map<Integer, Collection<String>> map2 = new HashMap<Integer, Collection<String>>();
 		map2.put(1, Arrays.asList("test3", "test4"));
 
 		book1.setBuckets(map1);
 		book2.setBuckets(map2);
 
-		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
-		IndexQuery indexQuery1 = new IndexQuery();
+		final List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
+		final IndexQuery indexQuery1 = new IndexQuery();
 		indexQuery1.setId(book1.getId());
 		indexQuery1.setObject(book1);
 
-		IndexQuery indexQuery2 = new IndexQuery();
+		final IndexQuery indexQuery2 = new IndexQuery();
 		indexQuery2.setId(book2.getId());
 		indexQuery2.setObject(book2);
 
@@ -340,12 +373,12 @@ public class NestedObjectTests {
 		indexQueries.add(indexQuery2);
 		//when
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(Book.class, true);
+		elasticsearchTemplate.refresh(Book.class);
 		//then
-		SearchQuery searchQuery = new NativeSearchQueryBuilder()
+		final SearchQuery searchQuery = new NativeSearchQueryBuilder()
 				.withQuery(nestedQuery("buckets", termQuery("buckets.1", "test3")))
 				.build();
-		Page<Book> books = elasticsearchTemplate.queryForPage(searchQuery, Book.class);
+		final Page<Book> books = elasticsearchTemplate.queryForPage(searchQuery, Book.class);
 
 		assertThat(books.getContent().size(), is(1));
 		assertThat(books.getContent().get(0).getId(), is(book2.getId()));

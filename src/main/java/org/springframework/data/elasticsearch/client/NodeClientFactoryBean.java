@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2015 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,11 @@ package org.springframework.data.elasticsearch.client;
 
 import static org.elasticsearch.node.NodeBuilder.*;
 
+import java.io.InputStream;
+import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -40,6 +42,9 @@ public class NodeClientFactoryBean implements FactoryBean<NodeClient>, Initializ
 	private boolean enableHttp;
 	private String clusterName;
 	private NodeClient nodeClient;
+	private String pathData;
+	private String pathHome;
+	private String pathConfiguration;
 
 	NodeClientFactoryBean() {
 	}
@@ -65,11 +70,23 @@ public class NodeClientFactoryBean implements FactoryBean<NodeClient>, Initializ
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder().put("http.enabled",
-				String.valueOf(this.enableHttp));
-
-		nodeClient = (NodeClient) nodeBuilder().settings(settings).clusterName(this.clusterName).local(this.local).node()
+		nodeClient = (NodeClient) nodeBuilder().settings(Settings.builder().put(loadConfig())
+				.put("http.enabled", String.valueOf(this.enableHttp))
+				.put("path.home", this.pathHome)
+				.put("path.data", this.pathData))
+				.clusterName(this.clusterName).local(this.local).node()
 				.client();
+	}
+
+	private Settings loadConfig() {
+		if (StringUtils.isNotBlank(pathConfiguration)) {
+			InputStream stream = getClass().getClassLoader().getResourceAsStream(pathConfiguration);
+			if (stream != null) {
+				return Settings.builder().loadFromStream(pathConfiguration, getClass().getClassLoader().getResourceAsStream(pathConfiguration)).build();
+			}
+			logger.error(String.format("Unable to read node configuration from file [%s]", pathConfiguration));
+		}
+		return Settings.builder().build();
 	}
 
 	public void setLocal(boolean local) {
@@ -82,6 +99,18 @@ public class NodeClientFactoryBean implements FactoryBean<NodeClient>, Initializ
 
 	public void setClusterName(String clusterName) {
 		this.clusterName = clusterName;
+	}
+
+	public void setPathData(String pathData) {
+		this.pathData = pathData;
+	}
+
+	public void setPathHome(String pathHome) {
+		this.pathHome = pathHome;
+	}
+
+	public void setPathConfiguration(String configuration) {
+		this.pathConfiguration = configuration;
 	}
 
 	@Override

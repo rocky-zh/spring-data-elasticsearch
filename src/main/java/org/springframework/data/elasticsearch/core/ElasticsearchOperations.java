@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2014 the original author or authors.
+ * Copyright 2013-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,18 @@
  */
 package org.springframework.data.elasticsearch.core;
 
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.springframework.data.domain.Page;
+import org.springframework.data.elasticsearch.core.convert.ElasticsearchConverter;
+import org.springframework.data.elasticsearch.core.mapping.ElasticsearchPersistentEntity;
+import org.springframework.data.elasticsearch.core.query.*;
+import org.springframework.data.util.CloseableIterator;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import org.elasticsearch.action.update.UpdateResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.elasticsearch.core.convert.ElasticsearchConverter;
-import org.springframework.data.elasticsearch.core.query.*;
 
 /**
  * ElasticsearchOperations
@@ -38,6 +41,11 @@ public interface ElasticsearchOperations {
 	 * @return Converter in use
 	 */
 	ElasticsearchConverter getElasticsearchConverter();
+
+	/**
+	 * @return elasticsearch client
+	 */
+	Client getClient();
 
 	/**
 	 * Create an index for a class
@@ -171,7 +179,7 @@ public interface ElasticsearchOperations {
 	 * @param clazz
 	 * @return
 	 */
-	<T> FacetedPage<T> queryForPage(SearchQuery query, Class<T> clazz);
+	<T> Page<T> queryForPage(SearchQuery query, Class<T> clazz);
 
 	/**
 	 * Execute the query against elasticsearch and return result as {@link Page} using custom mapper
@@ -180,7 +188,7 @@ public interface ElasticsearchOperations {
 	 * @param clazz
 	 * @return
 	 */
-	<T> FacetedPage<T> queryForPage(SearchQuery query, Class<T> clazz, SearchResultMapper mapper);
+	<T> Page<T> queryForPage(SearchQuery query, Class<T> clazz, SearchResultMapper mapper);
 
 	/**
 	 * Execute the query against elasticsearch and return result as {@link Page}
@@ -198,7 +206,7 @@ public interface ElasticsearchOperations {
 	 * @param clazz
 	 * @return
 	 */
-	<T> FacetedPage<T> queryForPage(StringQuery query, Class<T> clazz);
+	<T> Page<T> queryForPage(StringQuery query, Class<T> clazz);
 
 	/**
 	 * Execute the query against elasticsearch and return result as {@link Page} using custom mapper
@@ -207,7 +215,47 @@ public interface ElasticsearchOperations {
 	 * @param clazz
 	 * @return
 	 */
-	<T> FacetedPage<T> queryForPage(StringQuery query, Class<T> clazz, SearchResultMapper mapper);
+	<T> Page<T> queryForPage(StringQuery query, Class<T> clazz, SearchResultMapper mapper);
+
+	/**
+	 * Executes the given {@link CriteriaQuery} against elasticsearch and return result as {@link CloseableIterator}.
+	 * <p>
+	 * Returns a {@link CloseableIterator} that wraps an Elasticsearch scroll context that needs to be closed in case of error.
+	 *
+	 * @param <T> element return type
+	 * @param query
+	 * @param clazz
+	 * @return
+	 * @since 1.3
+	 */
+	<T> CloseableIterator<T> stream(CriteriaQuery query, Class<T> clazz);
+
+	/**
+	 * Executes the given {@link SearchQuery} against elasticsearch and return result as {@link CloseableIterator}.
+	 * <p>
+	 * Returns a {@link CloseableIterator} that wraps an Elasticsearch scroll context that needs to be closed in case of error.
+	 *
+	 * @param <T> element return type
+	 * @param query
+	 * @param clazz
+	 * @return
+	 * @since 1.3
+	 */
+	<T> CloseableIterator<T> stream(SearchQuery query, Class<T> clazz);
+
+	/**
+	 * Executes the given {@link SearchQuery} against elasticsearch and return result as {@link CloseableIterator} using custom mapper.
+	 * <p>
+	 * Returns a {@link CloseableIterator} that wraps an Elasticsearch scroll context that needs to be closed in case of error.
+	 *
+	 * @param <T> element return type
+	 * @param query
+	 * @param clazz
+	 * @param mapper
+	 * @return
+	 * @since 1.3
+	 */
+	<T> CloseableIterator<T> stream(SearchQuery query, Class<T> clazz, SearchResultMapper mapper);
 
 	/**
 	 * Execute the criteria query against elasticsearch and return result as {@link List}
@@ -324,6 +372,13 @@ public interface ElasticsearchOperations {
 	void bulkIndex(List<IndexQuery> queries);
 
 	/**
+	 * Bulk update all objects. Will do update
+	 *
+	 * @param queries
+	 */
+	void bulkUpdate(List<UpdateQuery> queries);
+
+	/**
 	 * Delete the one object with provided id
 	 *
 	 * @param indexName
@@ -333,6 +388,14 @@ public interface ElasticsearchOperations {
 	 */
 	String delete(String indexName, String type, String id);
 
+
+	/**
+	 * Delete all records matching the criteria
+	 *
+	 * @param clazz
+	 * @param criteriaQuery
+	 */
+	<T> void delete(CriteriaQuery criteriaQuery, Class<T> clazz);
 	/**
 	 * Delete the one object with provided id
 	 *
@@ -375,14 +438,6 @@ public interface ElasticsearchOperations {
 	boolean deleteIndex(String indexName);
 
 	/**
-	 * Deletes a type in an index
-	 *
-	 * @param index
-	 * @param type
-	 */
-	void deleteType(String index, String type);
-
-	/**
 	 * check if index is exists
 	 *
 	 * @param clazz
@@ -412,27 +467,69 @@ public interface ElasticsearchOperations {
 	 * refresh the index
 	 *
 	 * @param indexName
-	 * @param waitForOperation
+	 *
 	 */
-	void refresh(String indexName, boolean waitForOperation);
+	void refresh(String indexName);
 
 	/**
 	 * refresh the index
 	 *
 	 * @param clazz
-	 * @param waitForOperation
+	 *
 	 */
-	<T> void refresh(Class<T> clazz, boolean waitForOperation);
+	<T> void refresh(Class<T> clazz);
+
+	/**
+	 * Returns scroll id for criteria query
+	 *
+	 * @param query The criteria query.
+	 * @param scrollTimeInMillis The time in millisecond for scroll feature
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setScroll(org.elasticsearch.common.unit.TimeValue)}.
+	 * @param noFields The no fields support
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setNoFields()}.
+	 * @return The scan id for input query.
+	 */
+	String scan(CriteriaQuery query, long scrollTimeInMillis, boolean noFields);
+
+	/**
+	 * Returns scroll id for criteria query
+	 *
+	 * @param query The criteria query.
+	 * @param scrollTimeInMillis The time in millisecond for scroll feature
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setScroll(org.elasticsearch.common.unit.TimeValue)}.
+	 * @param noFields The no fields support
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setNoFields()}.
+	 * @param clazz The class of entity to retrieve.
+	 * @param <T> The type of entity to retrieve.
+	 * @return The scan id for input query.
+	 */
+	<T> String scan(CriteriaQuery query, long scrollTimeInMillis, boolean noFields, Class<T> clazz);
 
 	/**
 	 * Returns scroll id for scan query
 	 *
-	 * @param query
-	 * @param scrollTimeInMillis
-	 * @param noFields
-	 * @return
+	 * @param query The search query.
+	 * @param scrollTimeInMillis The time in millisecond for scroll feature
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setScroll(org.elasticsearch.common.unit.TimeValue)}.
+	 * @param noFields The no fields support
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setNoFields()}.
+	 * @return The scan id for input query.
 	 */
 	String scan(SearchQuery query, long scrollTimeInMillis, boolean noFields);
+
+	/**
+	 * Returns scroll id for scan query
+	 *
+	 * @param query The search query.
+	 * @param scrollTimeInMillis The time in millisecond for scroll feature
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setScroll(org.elasticsearch.common.unit.TimeValue)}.
+	 * @param noFields The no fields support
+	 * {@link org.elasticsearch.action.search.SearchRequestBuilder#setNoFields()}.
+	 * @param clazz The class of entity to retrieve.
+	 * @param <T> The type of entity to retrieve.
+	 * @return The scan id for input query.
+	 */
+	<T> String scan(SearchQuery query, long scrollTimeInMillis, boolean noFields, Class<T> clazz);
 
 	/**
 	 * Scrolls the results for give scroll id
@@ -455,6 +552,14 @@ public interface ElasticsearchOperations {
 	 * @return
 	 */
 	<T> Page<T> scroll(String scrollId, long scrollTimeInMillis, SearchResultMapper mapper);
+
+	/**
+	 * Clears the search contexts associated with specified scroll ids.
+	 *
+	 * @param scrollId
+	 *
+	 */
+	<T> void clearScroll(String scrollId);
 
 	/**
 	 * more like this query to search for documents that are "like" a specific document.
@@ -488,8 +593,11 @@ public interface ElasticsearchOperations {
 	 * @param indexName
 	 * @return
 	 */
-	Set<String> queryForAlias(String indexName);
+	List<AliasMetaData> queryForAlias(String indexName);
 
 
 	<T> T query(SearchQuery query, ResultsExtractor<T> resultsExtractor);
+
+
+	ElasticsearchPersistentEntity getPersistentEntityFor(Class clazz);
 }

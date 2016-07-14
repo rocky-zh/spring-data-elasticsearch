@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2014 the original author or authors.
+ * Copyright 2013-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.elasticsearch.common.collect.Lists;
+import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -60,7 +60,7 @@ public class SimpleElasticsearchRepositoryTests {
 	public void before() {
 		elasticsearchTemplate.deleteIndex(SampleEntity.class);
 		elasticsearchTemplate.createIndex(SampleEntity.class);
-		elasticsearchTemplate.refresh(SampleEntity.class, true);
+		elasticsearchTemplate.refresh(SampleEntity.class);
 	}
 
 	@Test
@@ -300,6 +300,121 @@ public class SimpleElasticsearchRepositoryTests {
 	}
 
 	@Test
+	public void shouldDeleteById() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity = new SampleEntity();
+		sampleEntity.setId(documentId);
+		sampleEntity.setMessage("hello world.");
+		sampleEntity.setVersion(System.currentTimeMillis());
+		repository.save(sampleEntity);
+		// when
+		long result = repository.deleteById(documentId);
+		repository.refresh();
+
+		// then
+		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(termQuery("id", documentId)).build();
+		Page<SampleEntity> sampleEntities = repository.search(searchQuery);
+		assertThat(sampleEntities.getTotalElements(), equalTo(0L));
+		assertThat(result, equalTo(1L));
+	}
+
+	@Test
+	public void shouldDeleteByMessageAndReturnList() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity1 = new SampleEntity();
+		sampleEntity1.setId(documentId);
+		sampleEntity1.setMessage("hello world 1");
+		sampleEntity1.setAvailable(true);
+		sampleEntity1.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity2 = new SampleEntity();
+		sampleEntity2.setId(documentId);
+		sampleEntity2.setMessage("hello world 2");
+		sampleEntity2.setAvailable(true);
+		sampleEntity2.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity3 = new SampleEntity();
+		sampleEntity3.setId(documentId);
+		sampleEntity3.setMessage("hello world 3");
+		sampleEntity3.setAvailable(false);
+		sampleEntity3.setVersion(System.currentTimeMillis());
+		repository.save(Arrays.asList(sampleEntity1, sampleEntity2, sampleEntity3));
+		// when
+		List<SampleEntity> result = repository.deleteByAvailable(true);
+		repository.refresh();
+		// then
+		assertThat(result.size(), equalTo(2));
+		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(matchAllQuery()).build();
+		Page<SampleEntity> sampleEntities = repository.search(searchQuery);
+		assertThat(sampleEntities.getTotalElements(), equalTo(1L));
+	}
+
+	@Test
+	public void shouldDeleteByListForMessage() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity1 = new SampleEntity();
+		sampleEntity1.setId(documentId);
+		sampleEntity1.setMessage("hello world 1");
+		sampleEntity1.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity2 = new SampleEntity();
+		sampleEntity2.setId(documentId);
+		sampleEntity2.setMessage("hello world 2");
+		sampleEntity2.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity3 = new SampleEntity();
+		sampleEntity3.setId(documentId);
+		sampleEntity3.setMessage("hello world 3");
+		sampleEntity3.setVersion(System.currentTimeMillis());
+		repository.save(Arrays.asList(sampleEntity1, sampleEntity2, sampleEntity3));
+		// when
+		List<SampleEntity> result = repository.deleteByMessage("hello world 3");
+		repository.refresh();
+		// then
+		assertThat(result.size(), equalTo(1));
+		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(matchAllQuery()).build();
+		Page<SampleEntity> sampleEntities = repository.search(searchQuery);
+		assertThat(sampleEntities.getTotalElements(), equalTo(2L));
+	}
+
+	@Test
+	public void shouldDeleteByType() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity1 = new SampleEntity();
+		sampleEntity1.setId(documentId);
+		sampleEntity1.setType("book");
+		sampleEntity1.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity2 = new SampleEntity();
+		sampleEntity2.setId(documentId);
+		sampleEntity2.setType("article");
+		sampleEntity2.setVersion(System.currentTimeMillis());
+
+		documentId = randomNumeric(5);
+		SampleEntity sampleEntity3 = new SampleEntity();
+		sampleEntity3.setId(documentId);
+		sampleEntity3.setType("image");
+		sampleEntity3.setVersion(System.currentTimeMillis());
+		repository.save(Arrays.asList(sampleEntity1, sampleEntity2, sampleEntity3));
+		// when
+		repository.deleteByType("article");
+		repository.refresh();
+		// then
+		SearchQuery searchQuery = new NativeSearchQueryBuilder().withQuery(matchAllQuery()).build();
+		Page<SampleEntity> sampleEntities = repository.search(searchQuery);
+		assertThat(sampleEntities.getTotalElements(), equalTo(2L));
+	}
+
+	@Test
 	public void shouldDeleteEntity() {
 		// given
 		String documentId = randomNumeric(5);
@@ -380,7 +495,6 @@ public class SimpleElasticsearchRepositoryTests {
 
 	@Test
 	public void shouldSortByGivenField() {
-		// todo
 		// given
 		String documentId = randomNumeric(5);
 		SampleEntity sampleEntity = new SampleEntity();

@@ -29,7 +29,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
  * @author Artur Konczak
  */
 
-@Document(indexName = "person-multiple-level-nested", type = "user", indexStoreType = "memory", shards = 1, replicas = 0, refreshInterval = "-1")
+@Document(indexName = "person-multiple-level-nested", type = "user", shards = 1, replicas = 0, refreshInterval = "-1")
 public class PersonMultipleLevelNested {
 
 	@Id
@@ -42,6 +42,9 @@ public class PersonMultipleLevelNested {
 
 	@Field(type = FieldType.Nested)
 	private List<Car> cars;
+
+	@Field(type = FieldType.Nested, includeInParent = true)
+	private List<Car> bestCars;
 
 	public String getId() {
 		return id;
@@ -73,5 +76,13 @@ public class PersonMultipleLevelNested {
 
 	public void setCars(List<Car> cars) {
 		this.cars = cars;
+	}
+
+	public List<Car> getBestCars() {
+		return bestCars;
+	}
+
+	public void setBestCars(List<Car> bestCars) {
+		this.bestCars = bestCars;
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2013-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public class ElasticsearchTemplateCompletionTests {
 	private void loadCompletionObjectEntities() {
 		elasticsearchTemplate.deleteIndex(CompletionEntity.class);
 		elasticsearchTemplate.createIndex(CompletionEntity.class);
-		elasticsearchTemplate.refresh(CompletionEntity.class, true);
+		elasticsearchTemplate.refresh(CompletionEntity.class);
 		elasticsearchTemplate.putMapping(CompletionEntity.class);
 
 		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
@@ -68,13 +68,13 @@ public class ElasticsearchTemplateCompletionTests {
 		indexQueries.add(new CompletionEntityBuilder("4").name("Artur Konczak").suggest(new String[]{"Artur", "Konczak"}, "Artur Konczak").buildIndex());
 
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(CompletionEntity.class, true);
+		elasticsearchTemplate.refresh(CompletionEntity.class);
 	}
 
 	private void loadAnnotatedCompletionObjectEntities() {
 		elasticsearchTemplate.deleteIndex(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.createIndex(AnnotatedCompletionEntity.class);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.putMapping(AnnotatedCompletionEntity.class);
 
 		NonDocumentEntity nonDocumentEntity = new NonDocumentEntity();
@@ -88,13 +88,13 @@ public class ElasticsearchTemplateCompletionTests {
 		indexQueries.add(new AnnotatedCompletionEntityBuilder("4").name("Artur Konczak").suggest(new String[]{"Artur", "Konczak"}, "Artur Konczak").buildIndex());
 
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 	}
 
 	private void loadAnnotatedCompletionObjectEntitiesWithPayloads() {
 		elasticsearchTemplate.deleteIndex(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.createIndex(AnnotatedCompletionEntity.class);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.putMapping(AnnotatedCompletionEntity.class);
 
 		NonDocumentEntity nonDocumentEntity = new NonDocumentEntity();
@@ -108,13 +108,13 @@ public class ElasticsearchTemplateCompletionTests {
 		indexQueries.add(new AnnotatedCompletionEntityBuilder("4").name("Mewes Kochheim4").suggest(new String[]{"Mewes Kochheim4"}, null, nonDocumentEntity).buildIndex());
 
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 	}
 
 	private void loadAnnotatedCompletionObjectEntitiesWithWeights() {
 		elasticsearchTemplate.deleteIndex(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.createIndex(AnnotatedCompletionEntity.class);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 		elasticsearchTemplate.putMapping(AnnotatedCompletionEntity.class);
 
 		List<IndexQuery> indexQueries = new ArrayList<IndexQuery>();
@@ -124,7 +124,7 @@ public class ElasticsearchTemplateCompletionTests {
 		indexQueries.add(new AnnotatedCompletionEntityBuilder("4").name("Mewes Kochheim4").suggest(new String[]{"Mewes Kochheim4"}, null, null, Integer.MAX_VALUE).buildIndex());
 
 		elasticsearchTemplate.bulkIndex(indexQueries);
-		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class, true);
+		elasticsearchTemplate.refresh(AnnotatedCompletionEntity.class);
 	}
 
 	@Test
@@ -154,7 +154,7 @@ public class ElasticsearchTemplateCompletionTests {
 		assertThat(options.size(), is(2));
 		assertThat(options.get(0).getText().string(), isOneOf("Marchand", "Mohsin Husen"));
 		assertThat(options.get(1).getText().string(), isOneOf("Marchand", "Mohsin Husen"));
-    }
+	}
 
 	@Test
 	public void shouldFindSuggestionsForGivenCriteriaQueryUsingAnnotatedCompletionEntity() {
@@ -171,8 +171,8 @@ public class ElasticsearchTemplateCompletionTests {
 
 		//then
 		assertThat(options.size(), is(2));
-		assertThat(options.get(0).getText().string(), isOneOf("Marchand","Mohsin Husen"));
-		assertThat(options.get(1).getText().string(), isOneOf("Marchand","Mohsin Husen"));
+		assertThat(options.get(0).getText().string(), isOneOf("Marchand", "Mohsin Husen"));
+		assertThat(options.get(1).getText().string(), isOneOf("Marchand", "Mohsin Husen"));
 	}
 
 	@Test
@@ -193,14 +193,11 @@ public class ElasticsearchTemplateCompletionTests {
 		for (CompletionSuggestion.Entry.Option option : options) {
 			if (option.getText().string().equals("Mewes Kochheim1")) {
 				assertEquals(Double.MAX_VALUE, option.getPayloadAsDouble(), 0);
-			}
-			else if (option.getText().string().equals("Mewes Kochheim2")) {
+			} else if (option.getText().string().equals("Mewes Kochheim2")) {
 				assertEquals(Long.MAX_VALUE, option.getPayloadAsLong());
-			}
-			else if (option.getText().string().equals("Mewes Kochheim3")) {
+			} else if (option.getText().string().equals("Mewes Kochheim3")) {
 				assertEquals("Payload test", option.getPayloadAsString());
-			}
-			else if (option.getText().string().equals("Mewes Kochheim4")) {
+			} else if (option.getText().string().equals("Mewes Kochheim4")) {
 				assertEquals("Payload", option.getPayloadAsMap().get("someField1"));
 				assertEquals("test", option.getPayloadAsMap().get("someField2"));
 			} else {
@@ -227,14 +224,11 @@ public class ElasticsearchTemplateCompletionTests {
 		for (CompletionSuggestion.Entry.Option option : options) {
 			if (option.getText().string().equals("Mewes Kochheim1")) {
 				assertEquals(4, option.getScore(), 0);
-			}
-			else if (option.getText().string().equals("Mewes Kochheim2")) {
+			} else if (option.getText().string().equals("Mewes Kochheim2")) {
 				assertEquals(0, option.getScore(), 0);
-			}
-			else if (option.getText().string().equals("Mewes Kochheim3")) {
+			} else if (option.getText().string().equals("Mewes Kochheim3")) {
 				assertEquals(1, option.getScore(), 0);
-			}
-			else if (option.getText().string().equals("Mewes Kochheim4")) {
+			} else if (option.getText().string().equals("Mewes Kochheim4")) {
 				assertEquals(Integer.MAX_VALUE, option.getScore(), 0);
 			} else {
 				fail("Unexpected option");

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 the original author or authors.
+ * Copyright 2013-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,10 @@ import static org.apache.commons.lang.RandomStringUtils.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -61,7 +63,7 @@ public class CustomMethodRepositoryTests {
 		elasticsearchTemplate.deleteIndex(SampleEntity.class);
 		elasticsearchTemplate.createIndex(SampleEntity.class);
 		elasticsearchTemplate.putMapping(SampleEntity.class);
-		elasticsearchTemplate.refresh(SampleEntity.class, true);
+		elasticsearchTemplate.refresh(SampleEntity.class);
 	}
 
 	@Test
@@ -120,7 +122,7 @@ public class CustomMethodRepositoryTests {
 		SampleEntity sampleEntity = new SampleEntity();
 		sampleEntity.setId(documentId);
 		sampleEntity.setType("test");
-		sampleEntity.setRate(10);
+		sampleEntity.setRate(9);
 		sampleEntity.setMessage("some message");
 		repository.save(sampleEntity);
 
@@ -496,6 +498,56 @@ public class CustomMethodRepositoryTests {
 	}
 
 	@Test
+	public void shouldExecuteCustomMethodWithGeoPoint() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity = new SampleEntity();
+		sampleEntity.setId(documentId);
+		sampleEntity.setType("test");
+		sampleEntity.setRate(10);
+		sampleEntity.setMessage("foo");
+		sampleEntity.setLocation(new GeoPoint(45.7806d, 3.0875d));
+
+		repository.save(sampleEntity);
+
+		// when
+		Page<SampleEntity> page = repository.findByLocation(new GeoPoint(45.7806d, 3.0875d), new PageRequest(0, 10));
+		// then
+		assertThat(page, is(notNullValue()));
+		assertThat(page.getTotalElements(), is(equalTo(1L)));
+	}
+
+	@Test
+	public void shouldExecuteCustomMethodWithGeoPointAndString() {
+		// given
+		String documentId = randomNumeric(5);
+		SampleEntity sampleEntity = new SampleEntity();
+		sampleEntity.setId(documentId);
+		sampleEntity.setType("test");
+		sampleEntity.setRate(10);
+		sampleEntity.setMessage("foo");
+		sampleEntity.setLocation(new GeoPoint(45.7806d, 3.0875d));
+
+		repository.save(sampleEntity);
+
+		documentId = randomNumeric(5);
+		sampleEntity = new SampleEntity();
+		sampleEntity.setId(documentId);
+		sampleEntity.setType("test");
+		sampleEntity.setRate(10);
+		sampleEntity.setMessage("foo");
+		sampleEntity.setLocation(new GeoPoint(48.7806d, 3.0875d));
+
+		repository.save(sampleEntity);
+
+		// when
+		Page<SampleEntity> page = repository.findByLocationAndMessage(new GeoPoint(45.7806d, 3.0875d), "foo", new PageRequest(0, 10));
+		// then
+		assertThat(page, is(notNullValue()));
+		assertThat(page.getTotalElements(), is(equalTo(1L)));
+	}
+
+	@Test
 	public void shouldExecuteCustomMethodWithWithinGeoPoint() {
 		// given
 		String documentId = randomNumeric(5);
@@ -529,7 +581,7 @@ public class CustomMethodRepositoryTests {
 		repository.save(sampleEntity);
 
 		// when
-		Page<SampleEntity> page = repository.findByLocationWithin(new Point(3.0875d, 45.7806d), new Distance(2, Metrics.KILOMETERS), new PageRequest(0, 10));
+		Page<SampleEntity> page = repository.findByLocationWithin(new Point(45.7806d, 3.0875d), new Distance(2, Metrics.KILOMETERS), new PageRequest(0, 10));
 		// then
 		assertThat(page, is(notNullValue()));
 		assertThat(page.getTotalElements(), is(equalTo(1L)));
@@ -565,7 +617,7 @@ public class CustomMethodRepositoryTests {
 		assertThat(pageAll.getTotalElements(), is(equalTo(2L)));
 
 		// when
-		Page<SampleEntity> page = repository.findByLocationNear(new Box(new Point(3d, 46d), new Point(4d, 45d)), new PageRequest(0, 10));
+		Page<SampleEntity> page = repository.findByLocationNear(new Box(new Point(46d, 3d), new Point(45d, 4d)), new PageRequest(0, 10));
 		// then
 		assertThat(page, is(notNullValue()));
 		assertThat(page.getTotalElements(), is(equalTo(1L)));
@@ -585,10 +637,26 @@ public class CustomMethodRepositoryTests {
 		repository.save(sampleEntity);
 
 		// when
-		Page<SampleEntity> page = repository.findByLocationNear(new Point(3.0875d, 45.7806d), new Distance(2, Metrics.KILOMETERS), new PageRequest(0, 10));
+		Page<SampleEntity> page = repository.findByLocationNear(new Point(45.7806d, 3.0875d), new Distance(2, Metrics.KILOMETERS), new PageRequest(0, 10));
 		// then
 		assertThat(page, is(notNullValue()));
 		assertThat(page.getTotalElements(), is(equalTo(1L)));
+	}
+
+	/*
+	DATAES-165
+	 */
+	@Test
+	public void shouldAllowReturningJava8StreamInCustomQuery() {
+		// given
+		List<SampleEntity> entities = createSampleEntities("abc", 30);
+		repository.save(entities);
+
+		// when
+		Stream<SampleEntity> stream = repository.findByType("abc");
+		// then
+		assertThat(stream, is(notNullValue()));
+		assertThat(stream.count(), is(equalTo(30L)));
 	}
 
 	/*
@@ -685,7 +753,7 @@ public class CustomMethodRepositoryTests {
 		SampleEntity sampleEntity = new SampleEntity();
 		sampleEntity.setId(documentId);
 		sampleEntity.setType("test");
-		sampleEntity.setRate(10);
+		sampleEntity.setRate(9);
 		sampleEntity.setMessage("some message");
 		repository.save(sampleEntity);
 
@@ -1056,7 +1124,7 @@ public class CustomMethodRepositoryTests {
 		repository.save(sampleEntity2);
 
 		// when
-		long count = repository.countByLocationWithin(new Point(3.0875d, 45.7806d), new Distance(2, Metrics.KILOMETERS));
+		long count = repository.countByLocationWithin(new Point(45.7806d, 3.0875d), new Distance(2, Metrics.KILOMETERS));
 		// then
 		assertThat(count, is(equalTo(1L)));
 	}
@@ -1088,7 +1156,7 @@ public class CustomMethodRepositoryTests {
 		repository.save(sampleEntity2);
 
 		// when
-		long count = repository.countByLocationNear(new Box(new Point(3d, 46d), new Point(4d, 45d)));
+		long count = repository.countByLocationNear(new Box(new Point(46d, 3d), new Point(45d, 4d)));
 		// then
 		assertThat(count, is(equalTo(1L)));
 	}
@@ -1120,10 +1188,22 @@ public class CustomMethodRepositoryTests {
 		repository.save(sampleEntity2);
 
 		// when
-		long count = repository.countByLocationNear(new Point(3.0875d, 45.7806d), new Distance(2, Metrics.KILOMETERS));
+		long count = repository.countByLocationNear(new Point(45.7806d, 3.0875d), new Distance(2, Metrics.KILOMETERS));
 		// then
 		assertThat(count, is(equalTo(1L)));
 	}
 
+	private List<SampleEntity> createSampleEntities(String type, int numberOfEntities) {
+		List<SampleEntity> entities = new ArrayList<SampleEntity>();
+		for (int i = 0; i < numberOfEntities; i++) {
+			SampleEntity entity = new SampleEntity();
+			entity.setId(randomNumeric(numberOfEntities));
+			entity.setAvailable(true);
+			entity.setMessage("Message");
+			entity.setType(type);
+			entities.add(entity);
+		}
+		return entities;
+	}
 }
 

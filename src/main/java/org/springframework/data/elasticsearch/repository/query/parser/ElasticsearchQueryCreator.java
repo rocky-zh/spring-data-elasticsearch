@@ -41,6 +41,7 @@ import org.springframework.data.repository.query.parser.PartTree;
  * @author Rizwan Idrees
  * @author Mohsin Husen
  * @author Franck Marchand
+ * @author Artur Konczak
  */
 public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuery, CriteriaQuery> {
 
@@ -61,7 +62,7 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 	protected CriteriaQuery create(Part part, Iterator<Object> iterator) {
 		PersistentPropertyPath<ElasticsearchPersistentProperty> path = context
 				.getPersistentPropertyPath(part.getProperty());
-		return new CriteriaQuery(from(part.getType(),
+		return new CriteriaQuery(from(part,
 				new Criteria(path.toDotPath(ElasticsearchPersistentProperty.PropertyToFieldNameConverter.INSTANCE)), iterator));
 	}
 
@@ -72,7 +73,7 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 		}
 		PersistentPropertyPath<ElasticsearchPersistentProperty> path = context
 				.getPersistentPropertyPath(part.getProperty());
-		return base.addCriteria(from(part.getType(),
+		return base.addCriteria(from(part,
 				new Criteria(path.toDotPath(ElasticsearchPersistentProperty.PropertyToFieldNameConverter.INSTANCE)), iterator));
 	}
 
@@ -89,7 +90,9 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 		return query.addSort(sort);
 	}
 
-	private Criteria from(Part.Type type, Criteria instance, Iterator<?> parameters) {
+	private Criteria from(Part part, Criteria instance, Iterator<?> parameters) {
+		Part.Type type = part.getType();
+
 		Criteria criteria = instance;
 		if (criteria == null) {
 			criteria = new Criteria();
@@ -99,8 +102,6 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 				return criteria.is(true);
 			case FALSE:
 				return criteria.is(false);
-			case SIMPLE_PROPERTY:
-				return criteria.is(parameters.next());
 			case NEGATING_SIMPLE_PROPERTY:
 				return criteria.is(parameters.next()).not();
 			case REGEX:
@@ -112,12 +113,14 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 				return criteria.endsWith(parameters.next().toString());
 			case CONTAINING:
 				return criteria.contains(parameters.next().toString());
-			case AFTER:
 			case GREATER_THAN:
+				return criteria.greaterThan(parameters.next());
+			case AFTER:
 			case GREATER_THAN_EQUAL:
 				return criteria.greaterThanEqual(parameters.next());
-			case BEFORE:
 			case LESS_THAN:
+				return criteria.lessThan(parameters.next());
+			case BEFORE:
 			case LESS_THAN_EQUAL:
 				return criteria.lessThanEqual(parameters.next());
 			case BETWEEN:
@@ -125,10 +128,23 @@ public class ElasticsearchQueryCreator extends AbstractQueryCreator<CriteriaQuer
 			case IN:
 				return criteria.in(asArray(parameters.next()));
 			case NOT_IN:
-				return criteria.in(asArray(parameters.next())).not();
+				return criteria.notIn(asArray(parameters.next()));
+			case SIMPLE_PROPERTY:
 			case WITHIN: {
 				Object firstParameter = parameters.next();
-				Object secondParameter = parameters.next();
+				Object secondParameter = null;
+				if (type == Part.Type.SIMPLE_PROPERTY) {
+					if (part.getProperty().getType() != GeoPoint.class)
+						return criteria.is(firstParameter);
+					else {
+						// it means it's a simple find with exact geopoint matching (e.g. findByLocation)
+						// and because Elasticsearch does not have any kind of query with just a geopoint
+						// as argument we use a "geo distance" query with a distance of one meter.
+						secondParameter = ".001km";
+					}
+				} else {
+					secondParameter = parameters.next();
+				}
 
 				if (firstParameter instanceof GeoPoint && secondParameter instanceof String)
 					return criteria.within((GeoPoint) firstParameter, (String) secondParameter);
